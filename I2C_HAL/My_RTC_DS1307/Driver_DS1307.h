@@ -26,8 +26,8 @@
 extern I2C_HandleTypeDef hi2c1;
 
 // Adresse I2C de la RTC DS1307
-//#define DS1307_Slave7bitsAdr (0x68<<1)
-#define DS1307_Slave7bitsAdr (0x64<<1)  //@LTC
+#define DS1307_Slave7bitsAdr (0x68<<1)
+
 
 typedef struct
 {

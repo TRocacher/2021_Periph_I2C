@@ -48,6 +48,7 @@
 									<listOptionValue builtIn="false" value="../Drivers/CMSIS/Include"/>
 									<listOptionValue builtIn="false" value="&quot;C:\Users\trocache\Documents\Thierry\2013_2016\SourcesKEIL_TP\Periph_2021_I2C\I2C_HAL\MyDrivers&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/Dev_I2C_HAL_476/My_RTC_DS1307}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/Dev_I2C_HAL_476/My_Gauge_LTC2944}&quot;"/>
 								</option>
 								<inputType id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c.1846054400" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c"/>
 							</tool>
