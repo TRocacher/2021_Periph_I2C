@@ -1,0 +1,171 @@
+****************************************
+*** INTRO ******************************
+****************************************
+
+Développement I2C de 4 manières différentes :
+- I2C Software : utilise un Timer réglé en IT à FreqI2C*4 (décomposition période en 4)
+la construction des trames se fait logiciellement, sans utilisation du périph I2C.
+Ne gère pas les erreurs sauf ack, ne gère pas l'accès au bus...
+
+- I2C LL : utilise le périphérique sur STM32F103RB en LL
+dépendances : les GPIO configurés en LL
+- I2C HAL : utilise le périphérique sur STM32L476 en HAL, cube IDE. 
+dépendances : les GPIO configuré en HAL.
+- I2C Reg : utilise le périphérique en écriture registre directement, sur STM32F103RB.
+dépendances : aucune
+
+- Aucune IT prévue , ni en émission ni en réception. La seule possible concerne les erreurs
+
+****************************************
+*** Caractéristiques Nucléo-64 *********
+****************************************
+L476 
+I2C1_SCL = PB6  Nucléo OK
+I2C1_SDA = PB7  Nucléo OK
+I2C2_SCL = PB10 / PB13  Nucléo OK PB10
+I2C2_SDA = PB11 / PB14  Nucléo OK PB11
+I2C3_SCL = PC0   !! passe par un solder bridge SB51 on par défaut
+I2C3_SDA = PC1   !! passe par un solder bridge SB56 on par défaut
+
+103RB
+I2C1_SCL = PB6 Nucléo OK 
+I2C1_SDA = PB7 Nucléo OK 
+I2C2_SCL = PB10  Nucléo OK 
+I2C2_SDA = PB11  Nucléo OK 
+
+********************************************************************************************************************************
+--------------------------------------------------------------------------------------------------------------------------------
+*************	Tout sauf HAL **************************************************************************************************
+--------------------------------------------------------------------------------------------------------------------------------
+********************************************************************************************************************************
+
+****************************************
+*** La FCT conf             ************
+****************************************
+
+void MyI2C_Init(I2C_TypeDef * I2Cx, MyI2C_Init_Typedef * InitStruct);
+
+- Dans tous les cas la fct d'init gère les IO, les choisit, les met en open drain
+- Dans tous les cas, on mettra en oeuvre l'IT erreur (sauf pour la version software)
+
+
+
+****************************************
+*** LES FCT input et output ************
+****************************************
+- putchar : start, @ slave, send 1 octet, Stop
+- putString : start, @slave, send N octets, Stop
+- getstring : start, @slave Read, read N-1 octets Ack,read last with Nack, Stop 
+
+
+****************************************
+*** LE HEADER FILE *********************
+****************************************
+
+
+Le .h est le même grosso modo 
+
+****  version registre et LL ****
+typedef enum 
+{
+	OK,
+	BusError, 	// 
+	AckFail,  	// 
+	TimeOut,		// SCL est resté plus de 25ms à l'état bas
+	UnknownError // IT erreur déclenchée mais pas de flag explicite ?
+	
+} MyI2C_Err_Enum;
+MyI2C_Err_Enum MyI2C_Get_Error(I2C_TypeDef * I2Cx);
+
+typedef struct
+{
+	int Freq_Hz;
+	char OwnAddr7bits;
+	char IT_Prio_I2CErr;
+}
+MyI2C_Init_Typedef;
+void MyI2C_Init(I2C_TypeDef * I2Cx, MyI2C_Init_Typedef * InitStruct);
+
+
+**** Version Software *****
+void MyI2C_Init(I2C_TypeDef * I2Cx); // Freq ck I2C fixe 100kHz ,Master mode.
+
+
+
+**** pour tous ****
+typedef struct
+{
+	char SlaveAdress7bits;  // l'adresse I2C
+	char * Ptr_Data;				// l'adresse de la châine à envoyer / recevoir
+	char Nb_Data;						// le nbre d'octets à envoyer / recevoir (gestion par le nbre, non par la détection de NULL)
+}
+MyI2C_RecSendData_Typedef;
+void MyI2C_PutString(I2C_TypeDef * I2Cx, MyI2C_RecSendData_Typedef * DataToSend);
+void MyI2C_PutChar(I2C_TypeDef * I2Cx, char Addr7bits, char Octet);
+void MyI2C_GetString(I2C_TypeDef * I2Cx, MyI2C_RecSendData_Typedef * DataReceived);
+**** fin pour tous ****
+
+
+****************************************
+*** COMPOSANTS VISES********************
+****************************************
+
+*** RTC DS1307 ***
+En écriture, il suffit de faire un putstring avec n data dont la première données (après l'@I2C bien sûr) est l'adresse pointeur.
+soit : Start + @I2C Write + Pointer @ + octets... + Stop
+
+En lecture, il faut d'abord avoir fixé l'adresse pointeur avec un Putchar. Ensuite on recommence une lecture avec GetString.
+soit : Start + @I2C Write + Pointer @ + Stop + Start + @I2C read + read N octets... + Stop
+
+
+*** LTC2944 ***
+En ecriture, presque comme le DS1307 on utilise putstring.
+On veut écrire val dans une registre reg : Start + @I2C Write + Reg@ + val+ Stop
+On veut écrire val1 à Val n  à partir de registre reg : Start + @I2C Write + Reg@ + val1...Val n+ Stop
+
+Lecture identique au DS1307
+
+
+********************************************************************************************************************************
+--------------------------------------------------------------------------------------------------------------------------------
+*************	   HAL        **************************************************************************************************
+--------------------------------------------------------------------------------------------------------------------------------
+********************************************************************************************************************************
+
+Les fct HAL se substituent à la lib MyI2C.c/.h
+
+Les fonctions proposées sont :
+HAL_StatusTypeDef HAL_I2C_Master_Transmit(I2C_HandleTypeDef * hi2c, uint16_t DevAddress, uint8_t * pData, uint16_t Size, uint32_t Timeout)
+HAL_StatusTypeDef HAL_I2C_Master_Receive(I2C_HandleTypeDef * hi2c, uint16_t DevAddress, uint8_t * pData, uint16_t Size, uint32_t Timeout)
+
+TIMEOUT : de 1 à HAL_MAX_DELAY -1 (en ms) avec HAL_MAX_DELAY is defined in the stm32f1xx_hal_def.h as 0xFFFFFFFF
+TIMEOUT = HAL_MAX_DELAY signifie infini
+
+NB : dans le main, les handles de périphérique sont définis, par exemple hi2c1
+
+
+
+
+
+
+
+
+
+
+
+
+********************************************************************************************************************************
+--------------------------------------------------------------------------------------------------------------------------------
+*************	   Retour d'expérience       ***********************************************************************************
+--------------------------------------------------------------------------------------------------------------------------------
+********************************************************************************************************************************
+
+****************************************
+***        HAL      ********************
+****************************************
+
+*** RTC DS1307 ***
+OK mais attention à décaler de 1 à gauche l'@slave 7 bits.
+Testé sur L476, I2C1,  les GPIO embarquent des pull up !
+
+
