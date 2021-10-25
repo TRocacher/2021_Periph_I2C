@@ -5,10 +5,9 @@
 //************** Var RTC DS1307 *******************************************************
 DS1307_Time_Typedef UserTimeSet;
 
-
+int tps;
 int main(void)
 {
-
 	
   //************** Configuration RTC DS1307 par I2C *********************************************		
 	// initialisation du driver I2C qui va piloter la RTC
@@ -16,14 +15,14 @@ int main(void)
 	DS1307_Init(I2C1);
 	
 	// initialisation de la RTC avec une date complète
-	UserTimeSet.Sec=0;
-	UserTimeSet.Min=13;
+	UserTimeSet.Sec=5;
+	UserTimeSet.Min=28;
 	UserTimeSet.H_12_Not_24=0;
 	UserTimeSet.PM_Not_AM=0; // on s'en moque ici. Utile que si H12_Not_24=1;
-	UserTimeSet.Hour=15;
-	UserTimeSet.Day=4;
-	UserTimeSet.Date=8;
-	UserTimeSet.Month=7;
+	UserTimeSet.Hour=14;
+	UserTimeSet.Day=1;
+	UserTimeSet.Date=25;
+	UserTimeSet.Month=10;
 	UserTimeSet.Year=21;
 
 	DS1307_SetTime(&UserTimeSet);
@@ -47,7 +46,10 @@ int main(void)
 		DS1307_GetTime(&UserTimeSet);
 	
 		
-		// délai 200ms
+		// delai
+		for (tps=0;tps<100000;tps++)
+		{
+		}
 	  		
   
   }

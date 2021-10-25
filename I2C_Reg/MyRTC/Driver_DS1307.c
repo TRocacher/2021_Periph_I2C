@@ -9,11 +9,6 @@
 static I2C_TypeDef * I2C_DS1307;
 
 
-	
-	
-
-
-
 
 void DS1307_Init(I2C_TypeDef * I2Cx)
 {
@@ -26,33 +21,28 @@ void DS1307_Init(I2C_TypeDef * I2Cx)
 
 
 
-void DS1307_SetPointer(char Pteur)
-{
-	MyI2C_PutChar(I2C_DS1307,DS1307_Slave7bitsAdr,Pteur);
-}
 
 
 // ================================ Mise à l'heure ==========================
 
-static char DS1307_TimeString[9]; // réservation premier byte pteur @
-#define PtrAdr 0
-#define sec 1
-#define min 2
-#define hour 3
-#define day 4
-#define date 5
-#define month 6
-#define year 7
-#define control 8
+static char DS1307_TimeString[8]; 
+
+#define sec 0
+#define min 1
+#define hour 2
+#define day 3
+#define date 4
+#define month 5
+#define year 6
+#define control 7
 
 static MyI2C_RecSendData_Typedef MyI2C_SendTimeData;
 
-char Conv_BCD(char Nbre);
+static char Conv_BCD(char Nbre);
 
 void DS1307_SetTime(DS1307_Time_Typedef * UserTime)
 {
-	// ptr adress à 0
-	DS1307_TimeString[PtrAdr]=0;
+
 	// Mise en forme des données BCD, voir documentation
 	DS1307_TimeString[sec]=Conv_BCD(UserTime->Sec);
 	DS1307_TimeString[min]=Conv_BCD(UserTime->Min);
@@ -83,12 +73,12 @@ void DS1307_SetTime(DS1307_Time_Typedef * UserTime)
 	
 	
 	// Préparation émission i2C
-	MyI2C_SendTimeData.Nb_Data=9;
+	MyI2C_SendTimeData.Nb_Data=8;
 	MyI2C_SendTimeData.Ptr_Data=DS1307_TimeString;
 	MyI2C_SendTimeData.SlaveAdress7bits=DS1307_Slave7bitsAdr;
 	
 	// émission effective
-	MyI2C_PutString(I2C_DS1307, &MyI2C_SendTimeData);
+	MyI2C_PutString(I2C_DS1307,0, &MyI2C_SendTimeData);
 	
 }
 
@@ -111,12 +101,12 @@ static MyI2C_RecSendData_Typedef MyI2C_RecevievedTimeData;
 
 #define BCD_To_Dec(var) (((var)&0x70)>>4)*10+((var)&0x0F)
 
+static char RecTab[7];
 
 void DS1307_GetTime(DS1307_Time_Typedef * UserTime)
 {
-	char RecTab[7];
+
 	
-	DS1307_SetPointer(0); // pointeur adresse du DS1307 à 0 (reg des secondes) pour lect seq
 	MyI2C_RecevievedTimeData.Nb_Data=7;
 	MyI2C_RecevievedTimeData.Ptr_Data=RecTab;
 	MyI2C_RecevievedTimeData.SlaveAdress7bits=DS1307_Slave7bitsAdr;

@@ -2,13 +2,13 @@
 #define _I2C_
 
 
-/*
-*/
+
+#include "stm32f10x.h"
+
+//by periph team
 
 /*
-
-
-========== I2C ==============================================
+=====================     I2C les IO      ==============================================
 deux périphériques, I2C1 et I2C2
 I2C1
 SCL PB6
@@ -18,29 +18,31 @@ I2C2
 SCL PB10
 SDA PB11
 
+======= GRANDS PRINCIPES ================================================================
 
-*/
+ATTENTION :
+Emission et réception en mode maître bloquant -> à lancer en background (ou dans une IT faible) 
+pour pouvoir être interrompue par une autre interruption.
 
-
-#include "stm32f10x.h"
-
-
-/* ===== GRANDS PRINCIPES ================================================================
-
-Emission et réception en mode maître bloquant -> à lancer en background pour pouvoir
-être interrompus par une autre interruption.
-
-Interruption :
-Non gérée sauf celles concernant les erreurs. Les types d'erreur sont :
+ATTENTION :
+Une interruption est activée sur l'I2C considérée. Elle met à jour la variable d'erreur.
+L'erreur est accessible par la fct MyI2C_Err_Enum MyI2C_Get_Error(I2C_TypeDef * I2Cx)
 BusError : Start et/ou stop conditions erronées (mettre à 0 par soft)
 AckFail  : l'ack n'est pas reçu (mettre à 0 par soft)
 TimeOut	 : SCL est resté plus de 25ms à l'état bas (mettre à 0 par soft)
 UnknownError : pas de flag précis...
 
-Trame typique I2C en écriture :
-|Start Cond|b7|b6|b5|b4|b3|b2|b1|b0|ACK|Stop Cond| 
+
+
+Trame typique I2C en écriture plusieurs octets s'enchaînent :
+|Start Cond   |@6|@5|@4|@3|@2|@1|@0| Wr =0 |ACK|   b7|b6|b5|b4|b3|b2|b1|b0|ACK|... |b7|b6|b5|b4|b3|b2|b1|b0|ACK|  Stop Cond| 
+
+Trame typique I2C en lecture plusieurs octets (écriture pteur + lecture octets réception rb7..rb0 etc)
+|Start Cond   |@6|@5|@4|@3|@2|@1|@0| Wr =0 |ACK|   pt7|pt6|pt5|pt4|pt3|pt2|pt1|pt0|ACK| 
+Restart |rb7|rb6|rb5|rb4|rb3|rb2|rb1|rb0|ACK| ...|rb7|rb6|rb5|rb4|rb3|rb2|rb1|rb0|NACK|Stop Cond| 
 
 ==========================================================================================*/
+
 
 
 /*========================================================================================= 
@@ -74,14 +76,10 @@ MyI2C_Err_Enum MyI2C_Get_Error(I2C_TypeDef * I2Cx);
 ========================================================================================= */
 
 
-
-
-
 /**
   * @brief  Initialise l'interface I2C (1 ou 2) 
   * @param  I2Cx: where x can be 1 or 2 to select the I2C peripheral.
   * @param char IT_Prio_I2CErr 0 à 15
-
   * @retval None
   */
 void MyI2C_Init(I2C_TypeDef * I2Cx, char IT_Prio_I2CErr);
@@ -98,7 +96,7 @@ typedef struct
 {
 	char SlaveAdress7bits;  // l'adresse I2C
 	char * Ptr_Data;				// l'adresse de la châine à envoyer / recevoir
-	char Nb_Data;						// le nbre d'octets à envoyer / recevoir (gestion par le nbre, non par la détection de NULL)
+	char Nb_Data;						// le nbre d'octets à envoyer / recevoir 
 }
 MyI2C_RecSendData_Typedef;
 
@@ -120,12 +118,8 @@ MyI2C_RecSendData_Typedef;
 	|Start Cond|Ad6|Ad5|Ad4|Ad3|Ad2|Ad1|Ad0|0 (=Write)|ACK|Octet 1|ACK|...|Octet n|ACK|Stop Cond|
 	|                 Address phase												|  Octet1   |...|  Octetn             |  
 
-	L'adresse 7 bits est envoyée avec un 0 formant le lsb (@8bit paire si on veut...). Le bit Ack
-	est renvoyé par le slave (0).
-	Ensuite les data 8 bits sont envoyées en série suivi d'un Ack du slave.
-	Après le dernier octet, stop condition conduisant au relâchement ds lignes SDA et SCL.
   */
-void MyI2C_PutString(I2C_TypeDef * I2Cx, MyI2C_RecSendData_Typedef * DataToSend);
+void MyI2C_PutString(I2C_TypeDef * I2Cx, char PteurAdress, MyI2C_RecSendData_Typedef * DataToSend);
 
 
 
@@ -144,17 +138,19 @@ void MyI2C_PutChar(I2C_TypeDef * I2Cx, char Addr7bits, char Octet);
 
 
 /*========================================================================================= 
-														Réception I2C : GetString !!! REPRENDRE le commentaire
+														Réception I2C : GetString 
 ========================================================================================= */
 
 /**
-	* @brief  Reçoit un paquet de données : start, Slave@, datas, stop
+	* @brief  Reçoit un paquet de données : start, Slave@ Wr, datas, stop
 	* le pointeur du boîtier I2C est supposé mis en place.
   * @param  I2Cx: where x can be 1 or 2 to select the I2C peripheral.
+  * @param  PteurAdress: @ du pointeur de registre interne du slave à partir duquel la 
+	*         lecture commence.
   * @param  DataToReceive, structure qui contient les informations (cf.h)
-	*		@param field 1 : SlaveAdress7bits, adresse du slave au format 7 bits.
+	*		@param field 1 :SlaveAdress7bits, adresse du slave au format 7 bits.
 	*										 NB : le code insère '1' au 8 ème bit pour indiquer la lecture
-	*   @param field 2 :@ string à recevoir.C'est le programme appelant qui réserve la table
+	*   @param field 2 :@ string à recevoir. C'est le programme appelant qui réserve la table
 	*										de réception.
 	*   @param field 3 :Nbre de caractère du string à recevoir
   * @retval None
@@ -166,12 +162,12 @@ Trame typique I2C en lecture :
 NB : L'adresse I2C 7 bits est aquittée par le slave. Ensuite c'est l'inverse : le master aquitte car il reçoit 
 les data (mais c'est lui qui génère toujours les fronts puisqu'il est mastter).
 Le master aquitte donc pour le slave sauf pour le dernier transfert : le Master 
-n'acquitte pas. C'est signe qu'il faut stopper.
+n'acquitte pas. C'est signe pour le slave qu'il faut stopper.
 
 
 
 */
-void	MyI2C_GetString(I2C_TypeDef * I2Cx, char PteurAdress, MyI2C_RecSendData_Typedef * DataToRead);
+void	MyI2C_GetString(I2C_TypeDef * I2Cx, char PteurAdress, MyI2C_RecSendData_Typedef * DataToReceive);
 
 
 

@@ -1,31 +1,23 @@
 #include "MyI2C.h"
 
 
-/* ===== GRANDS PRINCIPES ================================================================
+/* ======================================================================================
 
-Auteur : M.Bonnet / T.Rocacher
+//by periph team
 
 Emission et réception en mode maître bloquant -> à lancer en background pour pouvoir
 être interrompus par une autre interruption.
 
-Interruption :
-Non gérée sauf celles concernant les erreurs. Les types d'erreur sont :
-BusError : Start et/ou stop conditions erronées (mettre à 0 par soft)
-AckFail  : l'ack n'est pas reçu (mettre à 0 par soft)
-TimeOut	 : SCL est resté plus de 25ms à l'état bas (mettre à 0 par soft)
-UnknownError : pas de flag précis...
-
-Trame typique I2C en écriture :
-|Start Cond|b7|b6|b5|b4|b3|b2|b1|b0|ACK|Stop Cond| 
-
 ==========================================================================================*/
 
-
+// il se peut que le périph plante (flag busy). Décommenter le define ci-dessous pour contourner
+// le problème. 
+//#define FixBugBusyFlag
 
 
 //***************************************************************************************
 //=======================================================================================
-//          DEBUT : INCLUSION GPIO.C perso pour que le module soit indépendant
+//          DEBUT : Inclusion fcts GPIO perso pour que le module soit autonome
 //=======================================================================================
 //***************************************************************************************
 
@@ -89,7 +81,7 @@ void MyGPIO_Init( MyGPIO_Struct_TypeDef *  GPIOStructPtr)
 
 //***************************************************************************************
 //=======================================================================================
-//          FIN : INCLUSION GPIO.C perso pour que le module soit indépendant
+//         Fin : Inclusion fcts GPIO perso pour que le module soit autonome
 //=======================================================================================
 //***************************************************************************************
 
@@ -122,10 +114,6 @@ MyI2C_Err_Enum MyI2C_Get_Error(I2C_TypeDef * I2Cx)
 
 
 
-
-
-
-
 /*========================================================================================= 
 														INITIALISATION I2C
 ========================================================================================= */
@@ -133,15 +121,18 @@ MyI2C_Err_Enum MyI2C_Get_Error(I2C_TypeDef * I2Cx)
 /**
   * @brief  Initialise l'interface I2C (1 ou 2) 
   * @param  I2Cx: where x can be 1 or 2 to select the I2C peripheral.
-  * @param field 3 : char IT_Prio_I2CErr, 0 à 15
-
+  * @param char IT_Prio_I2CErr 0 à 15
   * @retval None
   */
 void MyI2C_Init(I2C_TypeDef * I2Cx, char IT_Prio_I2CErr)
 {
 		MyGPIO_Struct_TypeDef VarGPIOStruct;
     VarGPIOStruct.GPIO=GPIOB;
-	// Busy Flag glitch fix from STMF100x ErrataSheet p22 sec 2.11.17 (By M.B.)
+	
+	  #ifdef FixBugBusyFlag
+	 
+	  // Busy Flag glitch fix from STMF100x ErrataSheet p22 sec 2.11.17 (By M.B.)
+	  VarGPIOStruct.GPIO=GPIOB;
 		if (I2Cx==I2C1)
 		{
 			VarGPIOStruct.GPIO_Pin=6; VarGPIOStruct.GPIO_Conf=Out_OD; MyGPIO_Init(&VarGPIOStruct);
@@ -201,7 +192,7 @@ void MyI2C_Init(I2C_TypeDef * I2Cx, char IT_Prio_I2CErr)
 	
 	// End fix from STMF100x ErrataSheet p22 sec 2.11.17 (By M.B.)
 	
-	
+	#endif
 	
 	
 	// INIT GPIO	
@@ -281,9 +272,9 @@ void MyI2C_Init(I2C_TypeDef * I2Cx, char IT_Prio_I2CErr)
 ========================================================================================= */
 
 /**
-	* @brief  Envoie un paquet de données : start, Slave@, datas, stop
+	* @brief  Envoie un paquet de données : start, Slave I2C@, datas, stop
   * @param  I2Cx: where x can be 1 or 2 to select the I2C peripheral.
-  * @param  DataToSend, structure qui contient les informations (cf.h)
+  * @param  DataToSend, structure qui contient les informations 
 	*		@param field 1 : SlaveAdress7bits, adresse du slave au format 7 bits.
 	*										 NB : le code insère '0' au 8 ème bit pour indiquer l'écriture
 	*   @param field 2 :@ string à émettre.
@@ -296,15 +287,11 @@ void MyI2C_Init(I2C_TypeDef * I2Cx, char IT_Prio_I2CErr)
 	|Start Cond|Ad6|Ad5|Ad4|Ad3|Ad2|Ad1|Ad0|0 (=Write)|ACK|Octet 1|ACK|...|Octet n|ACK|Stop Cond|
 	|                 Address phase												|  Octet1   |...|  Octetn             |  
 
-	L'adresse 7 bits est envoyée avec un 0 formant le lsb (@8bit paire si on veut...). Le bit Ack
-	est renvoyé par le slave (0).
-	Ensuite les data 8 bits sont envoyées en série suivi d'un Ack du slave.
-	Après le dernier octet, stop condition conduisant au relâchement ds lignes SDA et SCL.
   */
 
 
 
-void MyI2C_PutString(I2C_TypeDef * I2Cx, MyI2C_RecSendData_Typedef * DataToSend)
+void MyI2C_PutString(I2C_TypeDef * I2Cx, char PteurAdress, MyI2C_RecSendData_Typedef * DataToSend)
 {
 	int buffer;
 	char * Ptr_Data;
@@ -340,10 +327,13 @@ void MyI2C_PutString(I2C_TypeDef * I2Cx, MyI2C_RecSendData_Typedef * DataToSend)
 	while ((I2Cx->SR1 & I2C_SR1_ADDR)) {};//Wait for ADDR =0	// ajout perso
 
 	
-//  //============== Fin phase Addressage ==================================================
+  //============== Fin phase Addressage ==================================================
 
-//	//============== emission de N-1 premiers octets =======================================
-
+	// émission @pteur registre interne
+	while (!(I2Cx->SR1 & I2C_SR1_TXE)) {}; //Wait for TX empty TXE=1	
+	I2Cx->DR = PteurAdress;		
+	//============== emission de N octets =======================================
+			
 	while (Cpt_Byte>0)
 	{
 	  //while(!LL_I2C_IsActiveFlag_TXE(I2Cx));
@@ -361,67 +351,9 @@ void MyI2C_PutString(I2C_TypeDef * I2Cx, MyI2C_RecSendData_Typedef * DataToSend)
 	//============== STOP condition ======================================================
 	//LL_I2C_GenerateStopCondition(I2Cx);
 	I2Cx->CR1 |= I2C_CR1_STOP;
-}
-
-
-
-
-void MyI2C_PutChar(I2C_TypeDef * I2Cx, char Addr7bits, char Octet)
-{
-	int buffer;
-	if (I2Cx==I2C1) I2C1_Err=OK;
-	else I2C2_Err=OK;
-
-	//==============START + Slave Adr ==================================================
-	// attente libération du bus
-	//while(LL_I2C_IsActiveFlag_BUSY(I2Cx));
-	while((I2Cx->SR1&I2C_SR2_BUSY)==I2C_SR2_BUSY);
-	// Start order
-	//LL_I2C_GenerateStartCondition(I2Cx);
-	I2Cx->CR1 |= I2C_CR1_ACK ; // Set ACK NOT MENTIONED IN REFERENCE MANUAL
-	I2Cx->CR1 |= I2C_CR1_START; //Start condition (see RM008 p 759)
-	//-------------EV5  (le start s'est bien passé)  BUSY, MSL and SB flag ----------------
-	//while(!LL_I2C_IsActiveFlag_SB(I2Cx));
-	while(!(I2Cx->SR1 & I2C_SR1_SB )){};	//Wait for SB flag	
 		
-  // Slave Adress Emission
-	buffer = I2Cx->SR1; // Dummy read 
-	I2Cx->DR=Addr7bits<<1; // insertion Write bit
-	//LL_I2C_TransmitData8(I2Cx, DataToSend->SlaveAdress7bits<<1); // insertion bit 0 = 0, @paire
-	
-	//-------------EV6   BUSY, MSL, ADDR, TXE and TRA flags  ---------------------------------
-	//while(!LL_I2C_IsActiveFlag_ADDR(I2Cx));
-	while (!(I2Cx->SR1 & I2C_SR1_ADDR)) {};//Wait for ADDR
-	buffer = I2Cx->SR1;  // Dummy read to clear ADDR
-	buffer = I2Cx->SR2;  // Dummy read to clear ADDR
-	while ((I2Cx->SR1 & I2C_SR1_ADDR)) {};//Wait for ADDR =0	// ajout perso
-
-	
-  //============== Fin phase Addressage ==================================================
-	
-	//============== émission dernier octet (attente effective fin transm avant stop) ======
-
-	
-	//while(!LL_I2C_IsActiveFlag_TXE(I2Cx));
-	while (!(I2Cx->SR1 & I2C_SR1_TXE)) {}; //Wait for TX empty TXE=1	
-	I2Cx->DR = Octet;	
-		
-	//-------------EV8_2   TRA, BUSY, MSL, TXE and BTF flags  ---------------------------------	
-	//while(!LL_I2C_IsActiveFlag_BTF(I2Cx));
-  while (!(I2Cx->SR1 & I2C_SR1_BTF)) {};
-		
-	
-	//============== STOP condition ======================================================
-	//LL_I2C_GenerateStopCondition(I2Cx);
-	I2Cx->CR1 |= I2C_CR1_STOP;
 		
 }
-	
-	
-	
-
-
-
 
 
 
@@ -433,17 +365,47 @@ void MyI2C_PutChar(I2C_TypeDef * I2Cx, char Addr7bits, char Octet)
 ========================================================================================= */
 
 
+/*========================================================================================= 
+														Réception I2C : GetString 
+========================================================================================= */
+
+/**
+	* @brief  Reçoit un paquet de données : start, Slave@ Wr, datas, stop
+	* le pointeur du boîtier I2C est supposé mis en place.
+  * @param  I2Cx: where x can be 1 or 2 to select the I2C peripheral.
+  * @param  PteurAdress: @ du pointeur de registre interne du slave à partir duquel la 
+	*         lecture commence.
+  * @param  DataToReceive, structure qui contient les informations (cf.h)
+	*		@param field 1 :SlaveAdress7bits, adresse du slave au format 7 bits.
+	*										 NB : le code insère '1' au 8 ème bit pour indiquer la lecture
+	*   @param field 2 :@ string à recevoir. C'est le programme appelant qui réserve la table
+	*										de réception.
+	*   @param field 3 :Nbre de caractère du string à recevoir
+  * @retval None
+
+Trame typique I2C en lecture :
+	|Start Cond|Ad6|Ad5|Ad4|Ad3|Ad2|Ad1|Ad0|1 (=Read)|ACK|Octet 1|ACK|...|Octet n-1|ACK|Octet n|NACK|Stop Cond|
+	|                 Address phase											|  Octet1  |...|  Octetn -1    | Octet n non acquitté|  
+
+NB : L'adresse I2C 7 bits est aquittée par le slave. Ensuite c'est l'inverse : le master aquitte car il reçoit 
+les data (mais c'est lui qui génère toujours les fronts puisqu'il est mastter).
+Le master aquitte donc pour le slave sauf pour le dernier transfert : le Master 
+n'acquitte pas. C'est signe pour le slave qu'il faut stopper.
 
 
-void MyI2C_GetString(I2C_TypeDef * I2Cx, char PteurAdress, MyI2C_RecSendData_Typedef * DataToRead)
+
+*/
+
+
+void MyI2C_GetString(I2C_TypeDef * I2Cx, char PteurAdress, MyI2C_RecSendData_Typedef * DataToReceive)
 {
-}
 
-	/*
 	char * Ptr_Data;
-	Ptr_Data=DataToReceive->Ptr_Data;
 	int Cpt_Byte;
 	int buffer;
+	Ptr_Data=DataToReceive->Ptr_Data;
+
+
 	
 	Cpt_Byte=DataToReceive->Nb_Data;
 	if (I2Cx==I2C1) I2C1_Err=OK;
@@ -463,7 +425,7 @@ void MyI2C_GetString(I2C_TypeDef * I2Cx, char PteurAdress, MyI2C_RecSendData_Typ
 		
   // Slave Adress Emission
 	buffer = I2Cx->SR1; // Dummy read 
-	I2Cx->DR=Addr7bits<<1; // insertion Write bit
+	I2Cx->DR=(DataToReceive->SlaveAdress7bits)<<1; // insertion Write bit
 	//LL_I2C_TransmitData8(I2Cx, DataToSend->SlaveAdress7bits<<1); // insertion bit 0 = 0, @paire
 	
 	//-------------EV6   BUSY, MSL, ADDR, TXE and TRA flags  ---------------------------------
@@ -483,69 +445,69 @@ void MyI2C_GetString(I2C_TypeDef * I2Cx, char PteurAdress, MyI2C_RecSendData_Typ
 
 	//while(!LL_I2C_IsActiveFlag_TXE(I2Cx));
 	while (!(I2Cx->SR1 & I2C_SR1_TXE)) {}; //Wait for TX empty TXE=1	
-	I2Cx->DR = *Ptr_Data;	
-	Cpt_Byte--;
-	Ptr_Data++;
+	I2Cx->DR = PteurAdress;	
+
 	//-------------EV8_2   TRA, BUSY, MSL, TXE and BTF flags  ---------------------------------	
 	//while(!LL_I2C_IsActiveFlag_BTF(I2Cx));
   while (!(I2Cx->SR1 & I2C_SR1_BTF)) {};
 		
+	
+		
 	// restart en mode read
 
-		
-	
-	
-	
 	
 	
 	// Ack après réception data (ce mode change au dernier octet donc il faut le répréciser)
-	LL_I2C_AcknowledgeNextData(I2Cx,LL_I2C_ACK);
+	I2Cx->CR1 |= I2C_CR1_ACK ; // Set ACK NOT MENTIONED IN REFERENCE MANUAL
 
 	//==============START + Slave Adr ==================================================
-	// attente libération du bus
-	while(LL_I2C_IsActiveFlag_BUSY(I2Cx));
-	// Start order
-	LL_I2C_GenerateStartCondition(I2Cx);
+	//LL_I2C_GenerateStartCondition(I2Cx);
+	I2Cx->CR1 |= I2C_CR1_START; //Start condition (see RM008 p 759)
 	//-------------EV5  (le start s'est bien passé)  BUSY, MSL and SB flag ----------------
-	while(!LL_I2C_IsActiveFlag_SB(I2Cx));
+	//while(!LL_I2C_IsActiveFlag_SB(I2Cx));
+	while(!(I2Cx->SR1 & I2C_SR1_SB )){};	//Wait for SB flag	
 	
   // Slave Adress for reception
-	LL_I2C_TransmitData8(I2Cx, (DataToReceive->SlaveAdress7bits<<1)|1); // insertion bit 0 = 1, @impaire, lecture
-	
-	//-------------EV6   BUSY, MSL, ADDR, TXE and TRA flags  ---------------------------------
-//	while(I2C_CheckEvent(I2Cx,I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED)!=SUCCESS);
-	while(!LL_I2C_IsActiveFlag_ADDR(I2Cx));
-	LL_I2C_ClearFlag_ADDR(I2Cx);
-	
-//  //============== Fin phase Addressage ==================================================
+	// Slave Adress Emission
+	buffer = I2Cx->SR1; // Dummy read 
+	I2Cx->DR=((DataToReceive->SlaveAdress7bits<<1)|1); // insertion bit 0 = 1, @impaire, lecture
 
-//	//============== réception de N-1 premiers octets =======================================
+		
+	//-------------EV6   BUSY, MSL, ADDR, TXE and TRA flags  ---------------------------------
+	//while(!LL_I2C_IsActiveFlag_ADDR(I2Cx));
+	while (!(I2Cx->SR1 & I2C_SR1_ADDR)) {};//Wait for ADDR
+	buffer = I2Cx->SR1;  // Dummy read to clear ADDR
+	buffer = I2Cx->SR2;  // Dummy read to clear ADDR
+	while ((I2Cx->SR1 & I2C_SR1_ADDR)) {};//Wait for ADDR =0	// ajout perso
+	
+  //============== Fin phase Addressage ==================================================
+
+		
+  //============== réception de N-1 premiers octets =======================================
 
 	while (Cpt_Byte>1)
 	{
-	  while(!LL_I2C_IsActiveFlag_RXNE(I2Cx)); // attendre RXNE = 1
-		*Ptr_Data=LL_I2C_ReceiveData8(I2Cx);
+		while (!(I2Cx->SR1 & I2C_SR1_RXNE)) {}; //Wait for RXNE
+		*Ptr_Data=I2Cx->DR;
 		Cpt_Byte--;
-		Ptr_Data++;
-
-		
+		Ptr_Data++;		
 	}
   //============== réception dernier octet (attente effective fin transm avant stop) ======
 	// config en Nack
-	LL_I2C_AcknowledgeNextData(I2Cx,LL_I2C_NACK);
+	I2Cx->CR1 &= ~I2C_CR1_ACK ; // Set NACK for the last byte
 
-	while(!LL_I2C_IsActiveFlag_RXNE(I2Cx)); // attendre RXNE = 1
-	*Ptr_Data=LL_I2C_ReceiveData8(I2Cx); // le dernier octet est lu
+	while (!(I2Cx->SR1 & I2C_SR1_RXNE)) {}; //Wait for RXNE
+	*Ptr_Data=I2Cx->DR;
 
-	
-	
+		
 	//============== STOP condition ======================================================
-	LL_I2C_GenerateStopCondition(I2Cx);
+	//LL_I2C_GenerateStopCondition(I2Cx);
+	I2Cx->CR1 |= I2C_CR1_STOP;
 	
 }
 
 
-*/
+
 
 //==================================================
 //
@@ -556,21 +518,19 @@ void MyI2C_GetString(I2C_TypeDef * I2Cx, char PteurAdress, MyI2C_RecSendData_Typ
 
 void I2C1_ER_IRQHandler (void)
 {
-//if (LL_I2C_IsActiveSMBusFlag_TIMEOUT(I2C1) ) I2C1_Err=TimeOut;
-//else if (LL_I2C_IsActiveFlag_AF(I2C1)) I2C1_Err=AckFail;
-//else if  (LL_I2C_IsActiveFlag_BERR(I2C1)) I2C1_Err=BusError;
-// else 	I2C1_Err=UnknownError;
-	while(1);
+	if (I2C1->SR1&=I2C_SR1_TIMEOUT==I2C_SR1_TIMEOUT) I2C1_Err=TimeOut;
+  else if (I2C1->SR1&=I2C_SR1_AF==I2C_SR1_AF) I2C1_Err=AckFail;
+  else if (I2C1->SR1&=I2C_SR1_BERR==I2C_SR1_BERR) I2C1_Err=BusError;
+	else 	I2C1_Err=UnknownError;	
 }	
 
 
 void I2C2_ER_IRQHandler  (void)
 {
-//if (LL_I2C_IsActiveSMBusFlag_TIMEOUT(I2C2) ) I2C2_Err=TimeOut;
-//else if (LL_I2C_IsActiveFlag_AF(I2C2)) I2C2_Err=AckFail;
-//else if  (LL_I2C_IsActiveFlag_BERR(I2C2)) I2C2_Err=BusError;
-//else 	I2C2_Err=UnknownError;
-		while(1);
+	if (I2C2->SR1&=I2C_SR1_TIMEOUT==I2C_SR1_TIMEOUT) I2C2_Err=TimeOut;
+  else if (I2C2->SR1&=I2C_SR1_AF==I2C_SR1_AF) I2C2_Err=AckFail;
+  else if (I2C2->SR1&=I2C_SR1_BERR==I2C_SR1_BERR) I2C2_Err=BusError;
+	else 	I2C2_Err=UnknownError;
 }
 
 
