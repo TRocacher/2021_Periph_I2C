@@ -173,7 +173,7 @@ Init et lecture Q OK
 Attention, la lecture se fait obligatoirement avec restart après l'écriture du pointeur interne. Pas de stop et start, le pointeur
 ne s'initialise pas.
 
-e5838f9 TEST : init 17000 mAh, résistance 470Ohm sur 5V (10.6mA th). En 2.4h, on obtient + 18.416mAh.
+2191dd5 TEST : init 17000 mAh, résistance 470Ohm sur 5V (10.6mA th). En 2.4h, on obtient + 18.416mAh.
 Ce qui veut dire que le courant moyen vaut 18.416/2.4 = 7.67mA, soit une erreur de 30%
 Mais c'est très bon il me semble car l'étendue de mesure est de 64m/6m = 10.6A ...
 En ne mettant aucune résistance toute la nuit, Q ne change pas d'1Lsb, autrement dit, l'offset est très bon.
