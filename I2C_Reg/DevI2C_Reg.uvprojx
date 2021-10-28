@@ -398,6 +398,11 @@
               <FileType>1</FileType>
               <FilePath>.\MyRTC\Driver_DS1307.c</FilePath>
             </File>
+            <File>
+              <FileName>Driver_LTC2944.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\My_Gauge_LTC2944\Driver_LTC2944.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -751,7 +756,7 @@
               <MiscControls></MiscControls>
               <Define>STM32F10X_MD</Define>
               <Undefine></Undefine>
-              <IncludePath>.\MyRTC;.\MyDrivers</IncludePath>
+              <IncludePath>.\MyRTC;.\MyDrivers;.\My_Gauge_LTC2944</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -809,6 +814,11 @@
               <FileName>Driver_DS1307.c</FileName>
               <FileType>1</FileType>
               <FilePath>.\MyRTC\Driver_DS1307.c</FilePath>
+            </File>
+            <File>
+              <FileName>Driver_LTC2944.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\My_Gauge_LTC2944\Driver_LTC2944.c</FilePath>
             </File>
           </Files>
         </Group>

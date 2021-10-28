@@ -121,7 +121,7 @@ MyI2C_Err_Enum MyI2C_Get_Error(I2C_TypeDef * I2Cx)
 /**
   * @brief  Initialise l'interface I2C (1 ou 2) 
   * @param  I2Cx: where x can be 1 or 2 to select the I2C peripheral.
-  * @param char IT_Prio_I2CErr 0 à 15
+  * @param char IT_Prio_I2CErr 0 à 15 (utilisé en cas d'erreur, IT courte et non bloquante
   * @retval None
   */
 void MyI2C_Init(I2C_TypeDef * I2Cx, char IT_Prio_I2CErr)
@@ -272,24 +272,15 @@ void MyI2C_Init(I2C_TypeDef * I2Cx, char IT_Prio_I2CErr)
 ========================================================================================= */
 
 /**
-	* @brief  Envoie un paquet de données : start, Slave I2C@, datas, stop
+	* @brief  |Start Cond   |@6|@5|@4|@3|@2|@1|@0| Wr =0 |ACK|   pt7|pt6|pt5|pt4|pt3|pt2|pt1|pt0|ACK| 
+|t7|t6|t5|t4|t3|t2|t1|t0|ACK| ...|t7|t6|t5|t4|t3|t2|t1|t0|ACK|Stop Cond|
+
   * @param  I2Cx: where x can be 1 or 2 to select the I2C peripheral.
-  * @param  DataToSend, structure qui contient les informations 
-	*		@param field 1 : SlaveAdress7bits, adresse du slave au format 7 bits.
-	*										 NB : le code insère '0' au 8 ème bit pour indiquer l'écriture
-	*   @param field 2 :@ string à émettre.
-	*   @param field 3 :Nbre de caractère du string (le print ne travaille pas sur la recherche 
-  *										de NULL mais sur le nbre d'octets, permettant d'envoyer n'importe quoi,
-	*										y compris la valeur 0.
+  * @param  PteurAdress = PteurMem, adresse de démarrage écriture à l'interieur du slave I2C
+  * @param  DataToSend, adresse de la structure qui contient les informations à transmettre 
+             voir définition	MyI2C_RecSendData_Typedef				
   * @retval None
-
-	Trame typique I2C en écriture :
-	|Start Cond|Ad6|Ad5|Ad4|Ad3|Ad2|Ad1|Ad0|0 (=Write)|ACK|Octet 1|ACK|...|Octet n|ACK|Stop Cond|
-	|                 Address phase												|  Octet1   |...|  Octetn             |  
-
   */
-
-
 
 void MyI2C_PutString(I2C_TypeDef * I2Cx, char PteurAdress, MyI2C_RecSendData_Typedef * DataToSend)
 {
@@ -361,40 +352,23 @@ void MyI2C_PutString(I2C_TypeDef * I2Cx, char PteurAdress, MyI2C_RecSendData_Typ
 
 
 /*========================================================================================= 
-														Réception I2C : GetString
+														Réception I2C : GetString 
 ========================================================================================= */
-
 
 /*========================================================================================= 
 														Réception I2C : GetString 
 ========================================================================================= */
 
 /**
-	* @brief  Reçoit un paquet de données : start, Slave@ Wr, datas, stop
-	* le pointeur du boîtier I2C est supposé mis en place.
+	* @brief  |Start Cond   |@6|@5|@4|@3|@2|@1|@0| Wr =0 |ACK|   pt7|pt6|pt5|pt4|pt3|pt2|pt1|pt0|ACK| 
+Restart |r7|r6|r5|r4|r3|r2|r1|r0|ACK| ...|r7|r6|r5|r4|r3|r2|r1|r0|NACK|Stop Cond| 
+
   * @param  I2Cx: where x can be 1 or 2 to select the I2C peripheral.
-  * @param  PteurAdress: @ du pointeur de registre interne du slave à partir duquel la 
-	*         lecture commence.
-  * @param  DataToReceive, structure qui contient les informations (cf.h)
-	*		@param field 1 :SlaveAdress7bits, adresse du slave au format 7 bits.
-	*										 NB : le code insère '1' au 8 ème bit pour indiquer la lecture
-	*   @param field 2 :@ string à recevoir. C'est le programme appelant qui réserve la table
-	*										de réception.
-	*   @param field 3 :Nbre de caractère du string à recevoir
+  * @param  PteurAdress = PteurMem, adresse de démarrage écriture à l'interieur du slave I2C
+  * @param  DataToSend, adresse de la structure qui contient les informations nécessaires à la
+						réception des données voir définition	MyI2C_RecSendData_Typedef				
   * @retval None
-
-Trame typique I2C en lecture :
-	|Start Cond|Ad6|Ad5|Ad4|Ad3|Ad2|Ad1|Ad0|1 (=Read)|ACK|Octet 1|ACK|...|Octet n-1|ACK|Octet n|NACK|Stop Cond|
-	|                 Address phase											|  Octet1  |...|  Octetn -1    | Octet n non acquitté|  
-
-NB : L'adresse I2C 7 bits est aquittée par le slave. Ensuite c'est l'inverse : le master aquitte car il reçoit 
-les data (mais c'est lui qui génère toujours les fronts puisqu'il est mastter).
-Le master aquitte donc pour le slave sauf pour le dernier transfert : le Master 
-n'acquitte pas. C'est signe pour le slave qu'il faut stopper.
-
-
-
-*/
+  */
 
 
 void MyI2C_GetString(I2C_TypeDef * I2Cx, char PteurAdress, MyI2C_RecSendData_Typedef * DataToReceive)

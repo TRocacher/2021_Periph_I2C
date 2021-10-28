@@ -1,49 +1,41 @@
 #include "Driver_DS1307.h"
 #include "stm32f10x.h"
+#include "Driver_LTC2944.h"
 
 
 //************** Var RTC DS1307 *******************************************************
 DS1307_Time_Typedef UserTimeSet;
+//************** Var Gauge LTC2944 *******************************************************
+LTC2944_Conf_Typedef UserLTC2944Conf;
+LTC2944_AnalogVal_Typedef LTC2944AnalogStruct;
+float Q;
+
 
 int tps;
 int main(void)
 {
 	
-  //************** Configuration RTC DS1307 par I2C *********************************************		
-	// initialisation du driver I2C qui va piloter la RTC
-
-	DS1307_Init(I2C1);
+  //************** Configuration LTC2944 par I2C *********************************************		
+  // initialisation de la jauge
+  UserLTC2944Conf.ADCmode=Control_ADCMode_Continuous;
+  UserLTC2944Conf.ALCC=Control_ALCCConfigure_Disable;
+  UserLTC2944Conf.PowerDown=Control_PowerDown_EnAnalogPart;
+	LTC2944_Conf(I2C1,&UserLTC2944Conf);
 	
-	// initialisation de la RTC avec une date complète
-	UserTimeSet.Sec=5;
-	UserTimeSet.Min=28;
-	UserTimeSet.H_12_Not_24=0;
-	UserTimeSet.PM_Not_AM=0; // on s'en moque ici. Utile que si H12_Not_24=1;
-	UserTimeSet.Hour=14;
-	UserTimeSet.Day=1;
-	UserTimeSet.Date=25;
-	UserTimeSet.Month=10;
-	UserTimeSet.Year=21;
-
-	DS1307_SetTime(&UserTimeSet);
+	
+  // Set Charge mAh
+  Q=LTC2944_Set_SOC_mAh(17000.0);
 
 	
 	
   while (1)
   {
-		/*******************************************************************************************
-		Debug système, passer en réel et ajouter dans watch window :
-		--> ADXL345 						--> gData , +/-1.0g
-		--> Xbee (UART1) 				--> XbeeReceivedByte (pour voir les octets en réception)
-														--> terminal sur xbee destinataire
-		--> RTC DS1307(I2C1)    --> UserTimeSet
-		--> Girouette						--> Angle_Degre_PlusMoins359  : +/-359
-		--> Plateau						  --> Vitesse_PlusMoins99 :  -99 et +99
-		--> Servo							  --> ServoVal_0to20 :  0 à 20 qui done 1 à 2 ms soit 5 à 10%
-		**************************************************************************************/
 		
 	
-		DS1307_GetTime(&UserTimeSet);
+		//************** read SOC ********************************************************
+	  Q= LTC2944_Get_SOC_mAh();
+	  //************** read Analog ********************************************************
+ 	  LTC2944_Get_AnalogVal(&LTC2944AnalogStruct);
 	
 		
 		// delai
