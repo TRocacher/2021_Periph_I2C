@@ -8,8 +8,7 @@
 //by periph team
 
 /*
-=====================     I2C les IO      ==============================================
-deux périphériques, I2C1 et I2C2
+=====================     I2C les IO STM32F103      ==============================================
 I2C1
 SCL PB6
 SDA PB7
@@ -18,11 +17,80 @@ I2C2
 SCL PB10
 SDA PB11
 
-======= COMMENTAIRES ================================================================
+==================== Fondamentaux I2C      ==========================================
+- Bus synchrone Low speed (<100kHz) ou high speed (=400kHz), 
+- Transfert octet par octet, pods fort en premier, avec aquittement pour chaque octet
+- Deux lignes SDA et SCL (horloge) en open drain, repos '1'
+- bit "normal" = SDA stable lors du pulse SCL (ie durant l'état haut de SCL)
+- bit Start/Stop/Restart = SDA non stable lorsque SCL vaut '1'
+			* Start : front descendant de SDA lorsque SCL vaut '1'
+			* Stop  : front montant de SDA lorsque SCL = '1'
+			* Restart = Start en cours de trame.
+- uC en Mode Master uniquement (c'est notre choix) : c'est le uC qui est maître de l'horloge SCL.
+- Le Slave a une @ 7 bits. On ajoute un bit 0 qui est /WR (donc 0 pour écriture, 1 pour lecture)
+- Une adresse s'écrit donc a6 a5 a4 a3 a2 a1 a0 /WR ce qui donne bien 8 bits. Elle indique une future
+lecture ou écriture.
+
+- On peut lire ou écrire une ou plusieurs données à la suite. C'est lors de l'envoie de l'adresse Slave
+du Master vers le slave que le sens à venir est indiqué.
+- En écriture, 
+			* les Ack sont faits par le slave après chaque octet envoyé par le master (Ack = mise à 0 le bit 9).
+- En lecture, 
+			* Les dès que le l@ slave est transmise (/RW = 1), le slave positionne le bit 7 du prochain Byte à lire
+			* le master enchaîne ses pulses (9), lors du pulse 9 c'est le master qui acquite.
+			* Après l'acquitement, le Slave amorce le prochain octet en positionnant son bit 7 sur SDA 
+			* Après le dernier octet, le Master génère un stop.
+			* Pour pouvoir générer le stop, le Master doit piloter SDA, or ce n'est pas possible puisque
+			le Slave positionne le futur bit 7 :
+			Pour s'en sortir, lors du dernier transfert, le Master n'acquitte pas (NACK). Ainsi le Slave ne
+			propose plus le bit 7 du prochain octet sur SDA. Le Master peut clôturer la communication avec un Stop.
+
+
+
+
+======= Echange typique avec un Slave  ================================================================
+- Une lecture ou écriture se fait vers un Slave et à partir d'une adresse mémoire donnée (pointeur interne).
+Ce pointeur est automatiquement incrémenté lors des accès écriture ou lecture.
+
+- Ecriture de N octets , trame complète (@ = adresse slave, pti = valeur de chargement du pointeur interne
+|Start Cond   |@6|@5|@4|@3|@2|@1|@0| Wr =0 |Slave ACK|
+|pt7|pt6|pt5|pt4|pt3|pt2|pt1|pt0|Slave ACK| 
+|d7|d6|d5|d4|d3|d2|d1|d0|Slave ACK| (data 1)
+.....
+|d7|d6|d5|d4|d3|d2|d1|d0|Salve ACK|Stop Cond| (data N)
+
+- Lecture de N octets à partir d'une adresse de pointeur donnée
+|Start Cond   |@6|@5|@4|@3|@2|@1|@0| Wr =0 |Slave ACK|
+|pt7|pt6|pt5|pt4|pt3|pt2|pt1|pt0|Slave ACK| 
+|ReStart Cond   |@6|@5|@4|@3|@2|@1|@0| Wr =1 |Slave ACK|
+|d7|d6|d5|d4|d3|d2|d1|d0|Master ACK| (data 1)
+.....
+|d7|d6|d5|d4|d3|d2|d1|d0|Master NACK|Stop Cond| (data N)
+
+
+
+
+
+
+REPRENDDE ICI
+
 
 ATTENTION :
 Emission et réception en mode maître bloquant -> à lancer en background (ou dans une IT faible) 
 pour pouvoir être interrompue par une autre interruption.
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 REMARQUE :
 Une interruption est activée sur l'I2C considérée (courte non bloquante). Elle met à jour la variable
@@ -77,7 +145,6 @@ typedef enum
 	AckFail,  	// Pas,d'ack
 	TimeOut,		// SCL est resté plus de 25ms à l'état bas
 	UnknownError // IT erreur déclenchée mais pas de flag explicite ?
-	
 } MyI2C_Err_Enum;
 
 
@@ -125,8 +192,11 @@ MyI2C_RecSendData_Typedef;
 
 
 /**
-	* @brief  |Start Cond   |@6|@5|@4|@3|@2|@1|@0| Wr =0 |ACK|   pt7|pt6|pt5|pt4|pt3|pt2|pt1|pt0|ACK| 
-|t7|t6|t5|t4|t3|t2|t1|t0|ACK| ...|t7|t6|t5|t4|t3|t2|t1|t0|ACK|Stop Cond|
+	* @brief|Start Cond   |@6|@5|@4|@3|@2|@1|@0| Wr =0 |Slave ACK|
+					|pt7|pt6|pt5|pt4|pt3|pt2|pt1|pt0|Slave ACK| 
+					|d7|d6|d5|d4|d3|d2|d1|d0|Slave ACK| (data 1)
+					.....
+					|d7|d6|d5|d4|d3|d2|d1|d0|Salve ACK|Stop Cond| (data N) 
 
   * @param  I2Cx: where x can be 1 or 2 to select the I2C peripheral.
   * @param  PteurAdress = PteurMem, adresse de démarrage écriture à l'interieur du slave I2C
@@ -150,8 +220,12 @@ void MyI2C_PutString(I2C_TypeDef * I2Cx, char PteurAdress, MyI2C_RecSendData_Typ
 ========================================================================================= */
 
 /**
-	* @brief  |Start Cond   |@6|@5|@4|@3|@2|@1|@0| Wr =0 |ACK|   pt7|pt6|pt5|pt4|pt3|pt2|pt1|pt0|ACK| 
-Restart |r7|r6|r5|r4|r3|r2|r1|r0|ACK| ...|r7|r6|r5|r4|r3|r2|r1|r0|NACK|Stop Cond| 
+	* @brief  |Start Cond   |@6|@5|@4|@3|@2|@1|@0| Wr =0 |Slave ACK|
+						|pt7|pt6|pt5|pt4|pt3|pt2|pt1|pt0|Slave ACK| 
+						|ReStart Cond   |@6|@5|@4|@3|@2|@1|@0| Wr =1 |Slave ACK|
+						|d7|d6|d5|d4|d3|d2|d1|d0|Master ACK| (data 1)
+						.....
+						|d7|d6|d5|d4|d3|d2|d1|d0|Master NACK|Stop Cond| (data N)
 
   * @param  I2Cx: where x can be 1 or 2 to select the I2C peripheral.
   * @param  PteurAdress = PteurMem, adresse de démarrage écriture à l'interieur du slave I2C

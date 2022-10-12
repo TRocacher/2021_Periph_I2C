@@ -12,79 +12,7 @@ Emission et réception en mode maître bloquant -> à lancer en background pour pou
 
 // il se peut que le périph plante (flag busy). Décommenter le define ci-dessous pour contourner
 // le problème. 
-//#define FixBugBusyFlag
-
-
-//***************************************************************************************
-//=======================================================================================
-//          DEBUT : Inclusion fcts GPIO perso pour que le module soit autonome
-//=======================================================================================
-//***************************************************************************************
-
-typedef struct
-{
-	GPIO_TypeDef * GPIO;
-	char GPIO_Pin;    // numéro de pin 0 à 15
-	char GPIO_Conf;   // see below
-} MyGPIO_Struct_TypeDef;
-
-#define In_Floating   0x4  //   0100
-#define In_PullDown		0x8  //   1000 pdwn
-#define In_PullUp     0x9  //   1001 !!! code spécial pour pull up
-#define In_Analog		  0    //   0000 
-#define Out_Ppull 	  0x2  //   0010
-#define Out_OD        0x6  //   0110
-#define AltOut_Ppull  0xA  //   1010
-#define AltOut_OD			0xE  //   1110
-
-// CNF MOD
-// xx xx 
-
-void MyGPIO_Init( MyGPIO_Struct_TypeDef *  GPIOStructPtr)
-{
-
-	if (GPIOStructPtr->GPIO==GPIOA) RCC->APB2ENR|=RCC_APB2ENR_IOPAEN;
-	else if (GPIOStructPtr->GPIO==GPIOB) RCC->APB2ENR|=RCC_APB2ENR_IOPBEN;
-	else if (GPIOStructPtr->GPIO==GPIOC) RCC->APB2ENR|=RCC_APB2ENR_IOPCEN;
-	else if (GPIOStructPtr->GPIO==GPIOD) RCC->APB2ENR|=RCC_APB2ENR_IOPDEN;
-	else while(1);// port n'existe pas
-	
-	if ( GPIOStructPtr->GPIO_Conf==In_PullDown)
-	{
-		(GPIOStructPtr->GPIO)->ODR&=~(1<<(GPIOStructPtr->GPIO_Pin)); // mise à 0 du bit corresp
-		// dans ODR
-		GPIOStructPtr->GPIO_Conf=In_PullDown; // même code CNFMOD pour up ou douwn
-	}
-	
-	else if ( GPIOStructPtr->GPIO_Conf==In_PullUp)
-	{
-		(GPIOStructPtr->GPIO)->ODR|=1<<(GPIOStructPtr->GPIO_Pin); // mise à 1 du bit corresp
-		// dans ODR
-		GPIOStructPtr->GPIO_Conf=In_PullDown; // même code CNFMOD pour up ou douwn
-	}
-	
-	// Programmation
-	if ((GPIOStructPtr->GPIO_Pin <8)) // CRL
-	{	
-	  (GPIOStructPtr->GPIO)->CRL&=~(0xF<<((GPIOStructPtr->GPIO_Pin)*4));
-		(GPIOStructPtr->GPIO)->CRL|=((GPIOStructPtr->GPIO_Conf)<<((GPIOStructPtr->GPIO_Pin)*4));
-	}
-	else
-	{
-	  (GPIOStructPtr->GPIO)->CRH&=~(0xF<<((GPIOStructPtr->GPIO_Pin-8)*4));
-		(GPIOStructPtr->GPIO)->CRH|=((GPIOStructPtr->GPIO_Conf)<<((GPIOStructPtr->GPIO_Pin-8)*4));
-	}
-	
-}
-
-
-
-//***************************************************************************************
-//=======================================================================================
-//         Fin : Inclusion fcts GPIO perso pour que le module soit autonome
-//=======================================================================================
-//***************************************************************************************
-
+#define FixBugBusyFlag
 
 
 
@@ -124,75 +52,76 @@ MyI2C_Err_Enum MyI2C_Get_Error(I2C_TypeDef * I2Cx)
   * @param char IT_Prio_I2CErr 0 à 15 (utilisé en cas d'erreur, IT courte et non bloquante
   * @retval None
   */
+
+#define I2C_CNFMOD_ClrField 0xF
+#define I2C_ALT_OD_CNFMOD 0xF
+#define I2C_OD_CNFMOD 0x7
+
+int SCL;
+int SDA;
+__IO uint32_t * CRLH;
+
 void MyI2C_Init(I2C_TypeDef * I2Cx, char IT_Prio_I2CErr)
 {
-		MyGPIO_Struct_TypeDef VarGPIOStruct;
-    VarGPIOStruct.GPIO=GPIOB;
-	
-	  #ifdef FixBugBusyFlag
-	 
+		RCC->APB2ENR|=RCC_APB2ENR_IOPBEN;
 	  // Busy Flag glitch fix from STMF100x ErrataSheet p22 sec 2.11.17 (By M.B.)
-	  VarGPIOStruct.GPIO=GPIOB;
 		if (I2Cx==I2C1)
 		{
-			VarGPIOStruct.GPIO_Pin=6; VarGPIOStruct.GPIO_Conf=Out_OD; MyGPIO_Init(&VarGPIOStruct);
-		  VarGPIOStruct.GPIO->ODR |= (1<<(VarGPIOStruct.GPIO_Pin)); // Set SCL ODR=1
-		  while(! (VarGPIOStruct.GPIO->IDR & (1<<(VarGPIOStruct.GPIO_Pin)))); // check bit set
-			VarGPIOStruct.GPIO_Pin=7; VarGPIOStruct.GPIO_Conf=Out_OD; MyGPIO_Init(&VarGPIOStruct);
-			VarGPIOStruct.GPIO->ODR |= (1<<(VarGPIOStruct.GPIO_Pin)); // Set SDA ODR=1
-		  while(! (VarGPIOStruct.GPIO->IDR & (1<<(VarGPIOStruct.GPIO_Pin)))); //Check bit set
-		  VarGPIOStruct.GPIO_Pin=6;VarGPIOStruct.GPIO_Conf=Out_OD; MyGPIO_Init(&VarGPIOStruct);
-		  VarGPIOStruct.GPIO->ODR &= ~(1<<(VarGPIOStruct.GPIO_Pin)); // Set SCL ODR=0
-		  while((VarGPIOStruct.GPIO->IDR & (1<<(VarGPIOStruct.GPIO_Pin)))); //Check bit clear
-		  VarGPIOStruct.GPIO_Pin=7;VarGPIOStruct.GPIO_Conf=Out_OD; MyGPIO_Init(&VarGPIOStruct);
-		  VarGPIOStruct.GPIO->ODR &= ~(1<<(VarGPIOStruct.GPIO_Pin)); // Set SDA ODR=0
-		  while((VarGPIOStruct.GPIO->IDR & (1<<(VarGPIOStruct.GPIO_Pin)))); //Check bit clear
-		  VarGPIOStruct.GPIO_Pin=6;VarGPIOStruct.GPIO_Conf=Out_OD; MyGPIO_Init(&VarGPIOStruct);
-		  VarGPIOStruct.GPIO->ODR |= (1<<(VarGPIOStruct.GPIO_Pin)); // Set SCL ODR=1
-		  while(!(VarGPIOStruct.GPIO->IDR & (1<<(VarGPIOStruct.GPIO_Pin)))); //Check bit set
-		  VarGPIOStruct.GPIO_Pin=7;VarGPIOStruct.GPIO_Conf=Out_OD; MyGPIO_Init(&VarGPIOStruct);
-		  VarGPIOStruct.GPIO->ODR |= (1<<(VarGPIOStruct.GPIO_Pin)); // Set SDA ODR=1
-		  while(!(VarGPIOStruct.GPIO->IDR & (1<<(VarGPIOStruct.GPIO_Pin)))); //Check bit set
-			VarGPIOStruct.GPIO_Pin=6;VarGPIOStruct.GPIO_Conf=AltOut_OD; MyGPIO_Init(&VarGPIOStruct);
-			VarGPIOStruct.GPIO_Pin=7; VarGPIOStruct.GPIO_Conf=AltOut_OD; MyGPIO_Init(&VarGPIOStruct);
-				
-	
-			I2Cx->CR1 |= I2C_CR1_SWRST; //RESET I2C set
-			I2Cx->CR1 &= ~I2C_CR1_SWRST; //RESET I2C clear ***END of fix***
+			SCL=6;SDA=7;
+			CRLH=&(GPIOB->CRL);
 		}
-			
-		else // I2C2
+		else
 		{
-			VarGPIOStruct.GPIO_Pin=10; VarGPIOStruct.GPIO_Conf=Out_OD; MyGPIO_Init(&VarGPIOStruct);
-		  VarGPIOStruct.GPIO->ODR |= (1<<(VarGPIOStruct.GPIO_Pin)); // Set SCL ODR=1
-		  while(! (VarGPIOStruct.GPIO->IDR & (1<<(VarGPIOStruct.GPIO_Pin)))); // check bit set
-			VarGPIOStruct.GPIO_Pin=11; VarGPIOStruct.GPIO_Conf=Out_OD; MyGPIO_Init(&VarGPIOStruct);
-			VarGPIOStruct.GPIO->ODR |= (1<<(VarGPIOStruct.GPIO_Pin)); // Set SDA ODR=1
-		  while(! (VarGPIOStruct.GPIO->IDR & (1<<(VarGPIOStruct.GPIO_Pin)))); //Check bit set
-		  VarGPIOStruct.GPIO_Pin=10;VarGPIOStruct.GPIO_Conf=Out_OD; MyGPIO_Init(&VarGPIOStruct);
-		  VarGPIOStruct.GPIO->ODR &= ~(1<<(VarGPIOStruct.GPIO_Pin)); // Set SCL ODR=0
-		  while((VarGPIOStruct.GPIO->IDR & (1<<(VarGPIOStruct.GPIO_Pin)))); //Check bit clear
-		  VarGPIOStruct.GPIO_Pin=11;VarGPIOStruct.GPIO_Conf=Out_OD; MyGPIO_Init(&VarGPIOStruct);
-		  VarGPIOStruct.GPIO->ODR &= ~(1<<(VarGPIOStruct.GPIO_Pin)); // Set SDA ODR=0
-		  while((VarGPIOStruct.GPIO->IDR & (1<<(VarGPIOStruct.GPIO_Pin)))); //Check bit clear
-		  VarGPIOStruct.GPIO_Pin=10;VarGPIOStruct.GPIO_Conf=Out_OD; MyGPIO_Init(&VarGPIOStruct);
-		  VarGPIOStruct.GPIO->ODR |= (1<<(VarGPIOStruct.GPIO_Pin)); // Set SCL ODR=1
-		  while(!(VarGPIOStruct.GPIO->IDR & (1<<(VarGPIOStruct.GPIO_Pin)))); //Check bit set
-		  VarGPIOStruct.GPIO_Pin=11;VarGPIOStruct.GPIO_Conf=Out_OD; MyGPIO_Init(&VarGPIOStruct);
-		  VarGPIOStruct.GPIO->ODR |= (1<<(VarGPIOStruct.GPIO_Pin)); // Set SDA ODR=1
-		  while(!(VarGPIOStruct.GPIO->IDR & (1<<(VarGPIOStruct.GPIO_Pin)))); //Check bit set
-			VarGPIOStruct.GPIO_Pin=10;VarGPIOStruct.GPIO_Conf=AltOut_OD; MyGPIO_Init(&VarGPIOStruct);
-			VarGPIOStruct.GPIO_Pin=11; VarGPIOStruct.GPIO_Conf=AltOut_OD; MyGPIO_Init(&VarGPIOStruct);
-				
+			SCL=10;SDA=11;
+			CRLH=&(GPIOB->CRH);
+		}
+		//2 Configure the SCL and SDA I/Os as General Purpose Output Open-Drain, High level (Write 1 to GPIOx_ODR).
+    *CRLH&=~(I2C_CNFMOD_ClrField<<((SCL*4)%8)|I2C_CNFMOD_ClrField<<((SDA*4)%8));		
+		*CRLH |= (I2C_OD_CNFMOD<<((SCL*4)%8)|I2C_OD_CNFMOD<<((SDA*4)%8));
+		GPIOB->ODR |=(1<<SCL|1<<SDA);
+		//3 Check SCL and SDA High level in GPIOx_IDR
+		while(! (GPIOB->IDR & (1<<SCL))); // check bit set
+		while(! (GPIOB->IDR & (1<<SDA))); // check bit set
+		//4 Configure the SDA I/O as General Purpose Output Open-Drain, Low level (Write 0 to GPIOx_ODR).
+		*CRLH&=~(I2C_CNFMOD_ClrField<<((SDA*4)%8));		
+		*CRLH |= (I2C_OD_CNFMOD<<((SDA*4)%8));
+		GPIOB->ODR &=~(1<<SDA);	
+		//5 Check SDA Low level in GPIOx_IDR.
+		while((GPIOB->IDR & (1<<SDA))); // check bit clear
+		//6 Configure the SCL I/O as General Purpose Output Open-Drain, Low level (Write 0 to GPIOx_ODR).
+		*CRLH&=~(I2C_CNFMOD_ClrField<<((SCL*4)%8));		
+		*CRLH |= (I2C_OD_CNFMOD<<((SCL*4)%8));
+		GPIOB->ODR &=~(1<<SCL);
+    //7 Check SCL Low level in GPIOx_IDR.
+		while((GPIOB->IDR & (1<<SCL)));		// check bit clear	
+		//8 Configure the SCL I/O as General Purpose Output Open-Drain, High level (Write 1 to  GPIOx_ODR).
+		*CRLH&=~(I2C_CNFMOD_ClrField<<((SCL*4)%8));		
+		*CRLH |= (I2C_OD_CNFMOD<<((SCL*4)%8));
+		GPIOB->ODR |=(1<<SCL);
+		//9 Check SCL High level in GPIOx_IDR
+		while(! (GPIOB->IDR & (1<<SCL))); // check bit set
+		// 10 Configure the SDA I/O as General Purpose Output Open-Drain , High level (Write 1 to GPIOx_ODR)
+		*CRLH&=~(I2C_CNFMOD_ClrField<<((SDA*4)%8));		
+		*CRLH |= (I2C_OD_CNFMOD<<((SDA*4)%8));
+		GPIOB->ODR |=(1<<SDA);
+		//11 Check SDA High level in GPIOx_IDR.
+		while(! (GPIOB->IDR & (1<<SDA))); // check bit set		
+		//12 Configure the SCL and SDA I/Os as Alternate function Open-Drain.
+		*CRLH&=~(I2C_CNFMOD_ClrField<<((SCL*4)%8)|I2C_CNFMOD_ClrField<<((SDA*4)%8));		
+		*CRLH |= (I2C_ALT_OD_CNFMOD<<((SCL*4)%8)|I2C_ALT_OD_CNFMOD<<((SDA*4)%8));		
+	  // 13. Set SWRST bit in I2Cx_CR1 register.
+		I2Cx->CR1 |= I2C_CR1_SWRST; //RESET I2C set
+		//14. Clear SWRST bit in I2Cx_CR1 register
+		I2Cx->CR1 &= ~I2C_CR1_SWRST; //RESET I2C clear ***END of fix***
+		//15. Enable the I2C peripheral by setting the PE bit in I2Cx_CR1 register	
 	
-			I2Cx->CR1 |= I2C_CR1_SWRST; //RESET I2C set
-			I2Cx->CR1 &= ~I2C_CR1_SWRST; //RESET I2C clear ***END of fix***
+	// End fix from STMF100x ErrataSheet p22 sec 2.11.17 (By M.B.)	
 		}
 			
 	
-	// End fix from STMF100x ErrataSheet p22 sec 2.11.17 (By M.B.)
 	
-	#endif
+	
+
 	
 	
 	// INIT GPIO	
@@ -407,7 +336,7 @@ void MyI2C_GetString(I2C_TypeDef * I2Cx, char PteurAdress, MyI2C_RecSendData_Typ
 	while (!(I2Cx->SR1 & I2C_SR1_ADDR)) {};//Wait for ADDR
 	buffer = I2Cx->SR1;  // Dummy read to clear ADDR
 	buffer = I2Cx->SR2;  // Dummy read to clear ADDR
-	while ((I2Cx->SR1 & I2C_SR1_ADDR)) {};//Wait for ADDR =0	// ajout perso
+	while ((I2Cx->SR1 & I2C_SR1_ADDR)) {};//Wait for ADDR =0	// ajout perso ????????????????
 
 	
   //============== Fin phase Addressage ==================================================
