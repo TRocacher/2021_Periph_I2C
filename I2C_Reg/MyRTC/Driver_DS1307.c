@@ -46,30 +46,15 @@ void DS1307_SetTime(DS1307_Time_Typedef * UserTime)
 	// Mise en forme des données BCD, voir documentation
 	DS1307_TimeString[sec]=Conv_BCD(UserTime->Sec);
 	DS1307_TimeString[min]=Conv_BCD(UserTime->Min);
+	DS1307_TimeString[hour]=Conv_BCD(UserTime->Hour); // format 23h59
 	DS1307_TimeString[day]=UserTime->Day;
 	DS1307_TimeString[date]=Conv_BCD(UserTime->Date);
 	DS1307_TimeString[month]=Conv_BCD(UserTime->Month);
 	DS1307_TimeString[year]=Conv_BCD(UserTime->Year);
-	
-	
-	// Insertion du bit de contrôle 12h/24h ds le chp Hour (bit6)
-	if (UserTime->H_12_Not_24==0) //0-23h59
-	{
-		DS1307_TimeString[hour]=Conv_BCD(UserTime->Hour);
-		(DS1307_TimeString[hour])&=~(1<<6);
-	}
-	else
-	{
-		DS1307_TimeString[hour]=Conv_BCD(UserTime->Hour);
-		if (UserTime->PM_Not_AM==0) (DS1307_TimeString[hour])&=~(1<<5); // matin
-		else (DS1307_TimeString[hour])|=(1<<5); // aprem
-		DS1307_TimeString[hour]|=(1<<6);
-	}	
-	
 	// écriture du reg de contrôle, OUT=0 (b7), SQWE=0  (b4)
 	//(pas de sortie d'horloge)
-	(DS1307_TimeString[control])&=~(1<<4);
-	(DS1307_TimeString[control])&=~(1<<7);
+	DS1307_TimeString[control]=0;
+
 	
 	
 	// Préparation émission i2C

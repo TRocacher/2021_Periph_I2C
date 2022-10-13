@@ -27,8 +27,6 @@ typedef struct
 {
 	char Sec;
 	char Min;
-	char H_12_Not_24;
-	char PM_Not_AM; // 1 PM, 0 AM
 	char Hour;
 	char Day;
 	char Date;
@@ -49,24 +47,10 @@ void DS1307_Init(I2C_TypeDef * I2Cx);
 
 
 /**
-* @brief permet juste de caler le pointeur avant d'enclencher une lecture série.
-* il s'agit donc d'une opération Write suivi de l'adresse du pointeur :
-* la trame  0x68 (Write) suivi de 0x00 (adresse pointeur de base RTC)
-
-  * @param  la valeur de l'adresse du pointeur de registre du RTC (0 donc pour aller chercher les secondes
-	* en premier)
-  * @retval None
-*/
-void DS1307_SetPointer(char Pteur);
-
-
-
-/**
 * @brief  Mets à l'heure la RTC : doit envoyer 8 octets à partir de l'adresse 00h qui sont
 *  1-Sec ;2-min ;3-Hours (format 12/24..) ; 4- Jour (Lundi - Dim) ; 5- date (1-31) ; 6- Mois; 
 *  7-Année (diz et unit); 8-ctrl ( voir doc, 0 dans notre cas)
-*  la trame I2C qui sera envoyée contient donc 9 octets : L'adresse pteur + 8 bytes
-*  la trame est donc : 0x68 (Write) puis les 9 bytes 
+*  La trame I2C est donc : 0x68 (Write) puis l'adresse pointeur interne puis 8 data
 
   * @param  usertime (voir ci-dessus)
   * @retval None
@@ -79,7 +63,7 @@ void DS1307_SetTime(DS1307_Time_Typedef * UserTime);
 /**
 * @brief  Récupère les 7 valeurs du RTC
 * en deux temps , d'abord écriture pteur RTC
-* puis lancement lecture séquentielle
+* puis lancement lecture séquentielle avec un restart
 
   * @param  usertime (voir ci-dessus)
   * @retval None
