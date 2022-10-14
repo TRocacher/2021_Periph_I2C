@@ -10,12 +10,18 @@ static I2C_TypeDef * I2C_DS1307;
 
 
 
+void DS1307_CallbackErr(void)
+{
+	// A utiliser si plantage I2C. Si erreur inconnue, c'est souvent un Nack Slave Adress :
+	// Revoir l'@ 7 bits, bien faire attention à la connectique physique, à l'alim aussi.
+}
+
 void DS1307_Init(I2C_TypeDef * I2Cx)
 {
 	I2C_DS1307=I2Cx;
 
 
-	MyI2C_Init(I2Cx, 2);
+	MyI2C_Init(I2Cx, 2,DS1307_CallbackErr);
 }
 
 

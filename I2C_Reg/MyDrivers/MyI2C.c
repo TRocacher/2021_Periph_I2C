@@ -57,9 +57,11 @@ int SCL;
 int SDA;
 __IO uint32_t * CRLH;
 
-void MyI2C_Init(I2C_TypeDef * I2Cx, char IT_Prio_I2CErr)
-{
+static void (*PtrFct) (void);
 	
+void MyI2C_Init(I2C_TypeDef * I2Cx, char IT_Prio_I2CErr, void (*ITErr_function) (void))
+{
+		PtrFct=ITErr_function;
 		RCC->APB2ENR|=RCC_APB2ENR_IOPBEN;
 	  // Busy Flag glitch fix from STMF100x ErrataSheet p22 sec 2.11.17 (By M.B.)
 		if (I2Cx==I2C1)
@@ -356,6 +358,7 @@ void I2C1_ER_IRQHandler (void)
   else if (I2C1->SR1&=I2C_SR1_AF==I2C_SR1_AF) I2C1_Err=AckFail;
   else if (I2C1->SR1&=I2C_SR1_BERR==I2C_SR1_BERR) I2C1_Err=BusError;
 	else 	I2C1_Err=UnknownError;	
+	PtrFct();
 }	
 
 
@@ -365,6 +368,7 @@ void I2C2_ER_IRQHandler  (void)
   else if (I2C2->SR1&=I2C_SR1_AF==I2C_SR1_AF) I2C2_Err=AckFail;
   else if (I2C2->SR1&=I2C_SR1_BERR==I2C_SR1_BERR) I2C2_Err=BusError;
 	else 	I2C2_Err=UnknownError;
+	PtrFct();
 }
 
 

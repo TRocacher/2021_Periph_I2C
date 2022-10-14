@@ -12,6 +12,11 @@ static float vLSB_V;
 static float tLSB_Kelv;
 static char data[15];
 
+void LTC2944_CallbackErr(void)
+{
+	// A utiliser si plantage I2C. Si erreur inconnue, c'est souvent un Nack Slave Adress :
+	// Revoir l'@ 7 bits, bien faire attention à la connectique physique, à l'alim aussi.
+}
 
 /**
 * @brief configure le LTC2944 au démarrage
@@ -23,7 +28,7 @@ void LTC2944_Conf(I2C_TypeDef * I2Cx, LTC2944_Conf_Typedef * Conf)
 {
 	char ConfReg;
   I2C_LTC2944=I2Cx;
-	MyI2C_Init(I2Cx, I2C_Prio_LTC2944);	
+	MyI2C_Init(I2Cx, I2C_Prio_LTC2944,LTC2944_CallbackErr);	
 	
 	
 	

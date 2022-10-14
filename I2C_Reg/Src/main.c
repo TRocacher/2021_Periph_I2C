@@ -17,6 +17,8 @@ LTC2944_AnalogVal_Typedef LTC2944AnalogStruct;
 float Q;
 #endif
 
+
+
 int tps;
 int main(void)
 {
