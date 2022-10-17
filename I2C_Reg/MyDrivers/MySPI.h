@@ -46,7 +46,7 @@
 #ifndef INC_MYSPI_H_
 #define INC_MYSPI_H_
 
-#include "stm32F1xx.h"
+#include "stm32f10x.h"
 
 
 

@@ -72,33 +72,33 @@ void MySPI_Init(SPI_TypeDef * Spi)
 	{
 		RCC->APB2ENR|= RCC_APB2ENR_IOPAEN;
 		//SPI1_NSS PA4 Outpp
-		GPIOA->CRL&=~(0xF<<GPIO_CRL_MODE4_Pos);
-		GPIOA->CRL|=0x3<<GPIO_CRL_MODE4_Pos;
+		GPIOA->CRL&=~(0xF<<(4*4));
+		GPIOA->CRL|=0x3<<(4*4);
 		//SPI1_SCK PA5 Alt Out ppull
-		GPIOA->CRL&=~(0xF<<GPIO_CRL_MODE5_Pos);
-		GPIOA->CRL|=0xB<<GPIO_CRL_MODE5_Pos;
+		GPIOA->CRL&=~(0xF<<(5*4));
+		GPIOA->CRL|=0xB<<(5*4);
 		//SPI1_MISO  PA6  input floating
-		GPIOA->CRL&=~(0xF<<GPIO_CRL_MODE6_Pos);
-		GPIOA->CRL|=0x4<<GPIO_CRL_MODE6_Pos;
+		GPIOA->CRL&=~(0xF<<(6*4));
+		GPIOA->CRL|=0x4<<(6*4);
 		//SPI1_MOSI  PA7 Alt Out ppull
-		GPIOA->CRL&=~(0xFUL<<GPIO_CRL_MODE7_Pos);
-		GPIOA->CRL|=0xBUL<<GPIO_CRL_MODE7_Pos;
+		GPIOA->CRL&=~(0xFUL<<(7*4));
+		GPIOA->CRL|=0xBUL<<(7*4);
 	}
 	else 
 	{
 		RCC->APB2ENR|= RCC_APB2ENR_IOPBEN;
 		//SPI2_NSS PB12 Outpp
-		GPIOB->CRH&=~(0xF<<GPIO_CRH_MODE12_Pos);
-		GPIOB->CRH|=0x3<<GPIO_CRH_MODE12_Pos;
+		GPIOB->CRH&=~(0xF<<((12%8)*4));
+		GPIOB->CRH|=0x3<<((12%8)*4);
 		//SPI2_SCK PB13 Alt Out ppull
-		GPIOB->CRH&=~(0xF<<GPIO_CRH_MODE13_Pos);
-		GPIOB->CRH|=0xB<<GPIO_CRH_MODE13_Pos;
+		GPIOB->CRH&=~(0xF<<((13%8)*4));
+		GPIOB->CRH|=0xB<<((13%8)*4);
 		//SPI2_MISO  PB14  input floating
-		GPIOB->CRH&=~(0xF<<GPIO_CRH_MODE14_Pos);
-		GPIOB->CRH|=0x4<<GPIO_CRH_MODE14_Pos;
+		GPIOB->CRH&=~(0xF<<((14%8)*4));
+		GPIOB->CRH|=0x4<<((14%8)*4);
 		//SPI2_MOSI  PB15 Alt Out ppull
-		GPIOB->CRH&=~(0xFUL<<GPIO_CRH_MODE15_Pos);
-		GPIOB->CRH|=0xBUL<<GPIO_CRH_MODE15_Pos;
+		GPIOB->CRH&=~(0xFUL<<((15%8)*4));
+		GPIOB->CRH|=0xBUL<<((15%8)*4);
 	}
 	// Config deux fils
 	ActiveSPI->CR1&=~SPI_CR1_BIDIMODE;
@@ -107,13 +107,13 @@ void MySPI_Init(SPI_TypeDef * Spi)
 	// SPI2 sur APB1, lent, 36MHz
 	if (ActiveSPI==SPI1)
 	{
-		ActiveSPI->CR1&=~(0x7<<SPI_CR1_BR_Pos);
-		ActiveSPI->CR1|=0x7<<SPI_CR1_BR_Pos;
+		ActiveSPI->CR1&=~(0x7<<3);// Chp BR
+		ActiveSPI->CR1|=0x7<<3;
 	}
 	else
 	{
-		ActiveSPI->CR1&=~(0x7<<SPI_CR1_BR_Pos);
-		ActiveSPI->CR1|=0x6<<SPI_CR1_BR_Pos;
+		ActiveSPI->CR1&=~(0x7<<3);// Chp BR
+		ActiveSPI->CR1|=0x6<<3;
 	}
 	//CPOL=1, CPHA=1 (repos = '1', sample on rising edge)
 	ActiveSPI->CR1|=SPI_CR1_CPHA;

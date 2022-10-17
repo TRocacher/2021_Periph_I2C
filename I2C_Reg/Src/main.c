@@ -1,9 +1,17 @@
 #include "Driver_DS1307.h"
 #include "stm32f10x.h"
 #include "Driver_LTC2944.h"
+#include "MyADXL345.h"
 
 //#define UseLTC2944
-#define UseDS1307
+//#define UseDS1307
+#define UseADXL345
+
+//************** Var Accelero AXL345 *****************************************************
+#ifdef UseADXL345
+MyADXL345_gData User_g;
+int ID;
+#endif
 
 //************** Var RTC DS1307 *******************************************************
 #ifdef UseDS1307
@@ -22,6 +30,13 @@ float Q;
 int tps;
 int main(void)
 {
+	
+#ifdef UseADXL345
+MyADXL345_Init(SPI1);
+ID=MyADXL345_getID();
+MyADXL345_getData(&User_g);
+#endif	
+	
 #ifdef UseLTC2944	
   //************** Configuration LTC2944 par I2C *********************************************		
   // initialisation de la jauge
