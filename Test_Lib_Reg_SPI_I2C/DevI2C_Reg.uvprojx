@@ -339,7 +339,7 @@
               <MiscControls></MiscControls>
               <Define>STM32F10X_MD</Define>
               <Undefine></Undefine>
-              <IncludePath>.\MyRTC;.\MyDrivers;.\My_Gauge_LTC2944;.\MyADXL345</IncludePath>
+              <IncludePath>.\MyRTC;.\MyDrivers;.\My_Gauge_LTC2944;.\MyADXL345;.\Lib_Com_Periph_2022</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
